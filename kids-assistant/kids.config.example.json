@@ -1,0 +1,48 @@
+{
+  "kids": [
+    {
+      "name": "Estelle",
+      "email": "estelle@family.local",
+      "password_env": "ESTELLE_PASSWORD",
+      "tutor": {
+        "id": "estelle-tutor",
+        "name": "Estelle's Study Coach",
+        "description": "Grade 6 - Willard MS - Math 6",
+        "prompt_file": "prompts/estelle.md",
+        "suggestions": [
+          "Help me understand dividing fractions",
+          "Quiz me on U.S. History to 1865",
+          "How do I find the area of a triangle?"
+        ]
+      }
+    },
+    {
+      "name": "Dorian",
+      "email": "dorian@family.local",
+      "password_env": "DORIAN_PASSWORD",
+      "tutor": {
+        "id": "dorian-tutor",
+        "name": "Dorian's Study Buddy",
+        "description": "Grade 4 - Hovatter ES",
+        "prompt_file": "prompts/dorian.md",
+        "suggestions": [
+          "Help me with a division problem",
+          "Practice my times tables with me",
+          "How do I find the perimeter of a rectangle?"
+        ]
+      }
+    }
+  ],
+  "guardrails": {
+    "timezone": "America/New_York",
+    "study_hours_start": 7,
+    "study_hours_end": 21,
+    "alert_webhook_url": "",
+    "alert_min_severity": "medium",
+    "allow_images": false
+  },
+  "engine": {
+    "model": "claude-opus-5-5",
+    "effort": "medium"
+  }
+}

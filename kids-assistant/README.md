@@ -1,45 +1,92 @@
 # Kids Homework Assistant (built on Open WebUI)
 
-A safe, guided homework tutor for Estelle (Grade 6, Willard MS) and Dorian (Grade 4, Hovatter ES), Loudoun County Public Schools.
+A guided homework tutor for Estelle (Grade 6, Willard MS, Math 6) and Dorian (Grade 4, Hovatter ES), Loudoun County Public Schools.
 
-Status: **research and design.** No application changes yet.
+Status: **proof of concept.** It runs on the **stock** Open WebUI image. Everything kid-specific is plugins and configuration applied through the API, so upgrades are a version bump.
 
-## Contents
+## What's here
 
-- `curriculum/dorian-grade4.md` — courses, math program (Kiddom / Illustrative Mathematics), required methods and worked examples
-- `curriculum/estelle-grade6.md` — courses, schedule structure, math program (Mathspace), required methods and worked examples
+| Path | What it is |
+|---|---|
+| `curriculum/` | Research profiles: courses, LCPS math programs, required methods, worked examples |
+| `prompts/dorian.md`, `prompts/estelle.md` | Each tutor's instructions, built from the profiles |
+| `functions/kids_guardrails.py` | **Global** safety filter (children cannot turn it off) |
+| `functions/claude_tutor_engine.py` | Model provider: Claude via the official Anthropic SDK |
+| `scripts/provision.py` | One-command, re-runnable setup plus a safety audit |
+| `kids.config.example.json` | Names, logins, study hours, alert settings |
+| `docker-compose.yaml` | Runs Open WebUI v0.6.18 |
+| `tests/` | Unit tests (`test_*.py`) and an end-to-end check against a live instance (`e2e_check.py`) |
 
-These profiles become the knowledge base and system-prompt source for each child's tutor.
+## Setup
 
-## Design principles
+1. **Start it:** `docker compose -f kids-assistant/docker-compose.yaml up -d`, then open http://localhost:3000.
+2. **Create the parent account first.** The first account becomes the admin.
+3. **Create an API key** for the parent account: Settings > Account > API Keys. If API keys are disabled, enable them under Admin > Settings > General.
+4. **Configure:** `cp kids-assistant/kids.config.example.json kids-assistant/kids.config.json`, then edit names, emails, hours and the alert URL. The real config is git-ignored.
+5. **Provision:**
+   ```bash
+   export OWUI_URL=http://localhost:3000 OWUI_ADMIN_TOKEN=<parent API key>
+   export ANTHROPIC_API_KEY=<key>   # optional here; can be set later in Admin > Functions > Claude Tutor Engine > Valves
+   export ESTELLE_PASSWORD=... DORIAN_PASSWORD=...   # optional; generated and printed if unset
+   python3 kids-assistant/scripts/provision.py
+   ```
+   It ends with a safety audit. Re-run `provision.py --audit` any time you change settings in the UI.
 
-1. **Guide, don't answer.** LCPS Policy 5430 (generative AI, 2025) requires teacher approval for AI use on student work. The tutor coaches the child through problems and never hands over finished homework.
-2. **Teach the classroom method.** The state standards define *what* is taught; the curriculum (IM for grade 4, Mathspace for grade 6) and the teacher define *how*. When unsure, the tutor asks "How did your teacher show you?"
-3. **Layered safety, not a system prompt alone:**
-   - a hosted model with strong safety behavior;
-   - filter functions on input and output;
-   - blocking of personal information;
-   - escalation to a parent;
-   - no web access;
-   - parent-visible chat history.
-4. **Per-child isolation.** Separate accounts and separate tutors; each child can see only their own chats and notes.
+Re-run `provision.py` after editing a prompt or the config. It updates in place.
 
-## Research gaps
+## How the safety layers work
 
-- `www.doe.virginia.gov` is on this environment's allowlist, but VDOE's CDN (Akamai) returns *403 Access Denied* to automated clients. The full VDOE standards PDFs were not read directly; standards text comes from secondary sources that quote them. Fix: download the Grade 4 and Grade 6 Math SOL and Instructional Guide PDFs in a browser and add them under `curriculum/sources/`.
-- Publisher sites (mathspace.co, illustrativemathematics.org, kiddom.co) are not on the allowlist.
+1. **Accounts:** public sign-up is off. The parent creates the kids' accounts.
+2. **One model per child:** each child can see and use only their own tutor. The raw engine refuses any request that doesn't come through a tutor. The audit catches any public model record that would bypass the tutor.
+3. **The kids can't change the tutor's instructions.** Open WebUI's "no system prompt" permission only hides the box in the UI; the server still merges a child's own system prompt (from settings, folders, or a direct API call) into the request. The guardrail filter removes every client-supplied system prompt, so the tutor prompt is the only one the AI sees.
+4. **Guardrail filter** (global, runs before the AI, applies only to child accounts):
+   - Removes phone numbers, emails, street addresses and SSNs, from history too, before anything reaches the AI provider.
+   - **Self-harm (first-person), abuse, bullying, or a stranger asking for secrets, photos or a meetup:** tells the AI to drop the homework, respond supportively and point to a parent, counselor, 988 or 911. Logs a **high** alert.
+   - **Topic-only mentions** (for example a health-class question about suicide prevention): answered factually with a gentle 988 line. Logged at **low** severity with no message content.
+   - **"Just give me the answers" / "write my essay":** coaching reminder. **Jailbreak attempts:** stay-in-role reminder.
+   - **A short list of clearly inappropriate terms is blocked outright** before reaching the AI. 6th-grade Health topics (drugs, mental health, Family Life Education) are deliberately not blocked, because they are real homework.
+   - Study hours (default 7:00–21:00 Eastern) and a message length cap.
+5. **Locked permissions:** no web search, image generation, code execution, file upload, model creation, sharing, chat deletion or temporary chats. Notes are on.
+6. **Parent oversight:**
+   - Admin > Users shows every chat.
+   - Alerts are written to `/app/backend/data/kids-assistant/alerts.jsonl`.
+   - Optional push notification to a URL such as an ntfy.sh topic. **It carries only the child's name and the category, never the message.**
+7. **The AI itself:** Claude (`claude-opus-5-5`, medium effort), plus the tutor prompts' own safety rules.
+
+## Known limitations (read these)
+
+- **Keyword detection is a backstop, not the main defense.**
+  - It misses misspellings and indirect phrasing. Catching harm in context depends on the AI and the prompt.
+  - It will produce some false alerts. Tune `blocked_terms` and the patterns as real usage shows what fires.
+- **Replies are not filtered before display.** Open WebUI's output hook runs after a reply has streamed to the screen. Output safety relies on Claude's own safety behavior and the tutor prompt. The hook only cleans the stored copy.
+- **Notes:** private by default, but the note editor has an "Everyone" sharing toggle this Open WebUI version can't disable. A shared note can't be found by browsing; the other child would need its link.
+- **Refusal fallback is off** (`ENABLE_REFUSAL_FALLBACK`). Anthropic recommends turning on automatic fallback to another model when Claude declines. For a children's app, a decline is usually the guardrail working, so it stays off unless you choose otherwise.
+- **Provider terms:** check Anthropic's usage policy on products used by minors before going live. You are the account holder and operator.
+- **Exposure:** keep it on your home network or behind a VPN or a tunnel with authentication. Never expose port 3000 directly.
+- **Method accuracy:** the math methods come from the state standards and the published curricula, not yet from the kids' own classwork. Update `curriculum/` and `prompts/` as photos and syllabi arrive, then re-run `provision.py`.
+
+## Tests
+
+```bash
+pip install pytest pydantic anthropic
+python -m pytest kids-assistant/tests        # unit tests, no network needed
+# against a live, provisioned instance:
+OWUI_URL=... OWUI_ADMIN_TOKEN=... KIDS_CONFIG=... ESTELLE_PASSWORD=... DORIAN_PASSWORD=... \
+  python3 kids-assistant/tests/e2e_check.py
+```
 
 ## Sources
 
-- LCPS Mathematics (core resources): https://www.lcps.org/o/dtl/page/mathematics
+See `curriculum/*.md` for per-fact confidence tags.
+
+- LCPS Mathematics (core resources: Kiddom/Illustrative Mathematics K-5, Mathspace 6-8): https://www.lcps.org/o/dtl/page/mathematics
 - LCPS core textbook announcements: https://www.lcps.org/o/dtl/page/public-announcements
-- LCPS Program of Studies, middle school: https://sites.google.com/lcps.org/program-of-studies-2024-2025/middle-school-course-information (subject pages ms-math, ms-english, ms-science, ms-social-science, ms-hpe)
+- LCPS Program of Studies, middle school: https://sites.google.com/lcps.org/program-of-studies-2024-2025/middle-school-course-information
 - Willard electives: https://www.willardmiddleschool.org/academics/electives/
 - 2023 Virginia Math SOL K–12 (copy): https://www.baconsrebellion.com/wp-content/uploads/2023/12/00-Kthru12-Approved-2023-Math-SOL.pdf
-- 4.CE.2 text: https://goblinsapp.com/standards/math/virginia/4-ce-2
 - IM Grade 4 Unit 6: https://im.kendallhunt.com/K5/teachers/grade-4/unit-6/lessons.html
-- IM Grade 4 Unit 6 family materials: https://im.kendallhunt.com/k5/families/grade-4/unit-6/family-materials.html
 - Kiddom Virginia Math: https://www.kiddom.co/insights/introducing-kiddom-virginia-math
 - VDOE approved math textbooks: https://www.doe.virginia.gov/teaching-learning-assessment/k-12-standards-instruction/mathematics/2024-mathematics-textbooks
-- 2023 History & Social Science SOL FAQ: https://www.doe.virginia.gov/teaching-learning-assessment/k-12-standards-instruction/history-and-social-science/standards-of-learning/2023-history-and-social-science-sol-faq
 - LCPS AI policy coverage: https://www.loudounnow.com/news/education/loudoun-school-board-approves-new-generative-ai-policy/article_9cf6150a-9c80-4714-909c-a88340cd56b7.html
+
+Research gap: the VDOE site (www.doe.virginia.gov) is on the network allowlist, but its CDN returns 403 to automated clients, so the official standards PDFs were read only through secondary sources.

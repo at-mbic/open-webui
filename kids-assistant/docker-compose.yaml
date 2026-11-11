@@ -1,0 +1,48 @@
+# Kids Homework Assistant - runs the stock Open WebUI image. All kid-specific
+# behavior is added afterwards by scripts/provision.py (functions, models,
+# accounts, permissions), so upgrading Open WebUI is just a tag bump.
+#
+#   docker compose -f kids-assistant/docker-compose.yaml up -d
+#   open http://localhost:3000 and create the PARENT (admin) account first
+#
+# Keep this on your home network or behind a VPN/tunnel with HTTPS.
+# Do not expose port 3000 directly to the internet.
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.6.18
+    container_name: kids-assistant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:8080"
+    volumes:
+      - kids-assistant-data:/app/backend/data
+    environment:
+      # First-boot defaults. provision.py enforces the same settings via the
+      # API, because Open WebUI persists config in its database after first boot.
+      ENABLE_SIGNUP: "true"          # needed once, to create the parent account; provision.py turns it off
+      DEFAULT_USER_ROLE: "pending"
+      ENABLE_OLLAMA_API: "false"
+      ENABLE_OPENAI_API: "false"     # the only model source is the Claude Tutor Engine pipe
+      ENABLE_DIRECT_CONNECTIONS: "false"
+      ENABLE_COMMUNITY_SHARING: "false"
+      ENABLE_WEB_SEARCH: "false"
+      ENABLE_IMAGE_GENERATION: "false"
+      ENABLE_CODE_EXECUTION: "false"
+      ENABLE_CODE_INTERPRETER: "false"
+      ENABLE_EVALUATION_ARENA_MODELS: "false"
+      ENABLE_ADMIN_CHAT_ACCESS: "true"   # parent can read the kids' chats
+      ENABLE_NOTES: "true"
+      USER_PERMISSIONS_CHAT_TEMPORARY: "false"
+      USER_PERMISSIONS_CHAT_DELETE: "false"
+      USER_PERMISSIONS_FEATURES_WEB_SEARCH: "false"
+      USER_PERMISSIONS_FEATURES_IMAGE_GENERATION: "false"
+      USER_PERMISSIONS_FEATURES_CODE_INTERPRETER: "false"
+      WEBUI_NAME: "Study Buddy"
+      ANONYMIZED_TELEMETRY: "false"
+      SCARF_NO_ANALYTICS: "true"
+      DO_NOT_TRACK: "true"
+      TZ: "America/New_York"
+
+volumes:
+  kids-assistant-data:
