@@ -24,6 +24,16 @@ REFUSAL_TEXT = (
 )
 ERROR_TEXT = "Sorry, the study buddy is having trouble right now. Please try again in a minute."
 
+# Must match NOTICE_HEADER's prefix in kids_guardrails.py. Guardrail notices
+# are system text too, but they are not a tutor prompt.
+GUARDRAIL_NOTICE_PREFIX = "[Guardrail notice"
+
+
+def has_tutor_prompt(system: str) -> bool:
+    idx = system.find(GUARDRAIL_NOTICE_PREFIX)
+    core = system[:idx] if idx >= 0 else system
+    return bool(core.strip())
+
 
 def to_anthropic(messages: list[dict]) -> tuple[str, list[dict]]:
     """Convert OpenAI-style messages to (system, messages) for the Messages API."""
@@ -91,7 +101,7 @@ class Pipe:
         import anthropic
 
         system, messages = to_anthropic(body.get("messages", []))
-        if self.valves.REQUIRE_SYSTEM_PROMPT and not system:
+        if self.valves.REQUIRE_SYSTEM_PROMPT and not has_tutor_prompt(system):
             return "This engine can only be used through a tutor."
         if not messages:
             return "What would you like to work on?"

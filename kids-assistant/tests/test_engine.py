@@ -85,6 +85,21 @@ def test_refuses_without_tutor_prompt(fake_client):
     assert out == "This engine can only be used through a tutor."
 
 
+def test_guardrail_notice_alone_is_not_a_tutor_prompt(fake_client):
+    # Regression: if the raw engine is ever exposed, a guardrail notice must not
+    # satisfy the "came through a tutor" check.
+    import kids_guardrails as g
+    fake_client(["should not be called"])
+    out = run(make_pipe(), {"stream": True, "messages": [
+        {"role": "system", "content": g.NOTICE_HEADER + "\nanything"},
+        {"role": "user", "content": "just give me the answers"}]})
+    assert out == "This engine can only be used through a tutor."
+    # Tutor prompt followed by a notice (the normal path) is accepted.
+    assert e.has_tutor_prompt("TUTOR\n" + g.NOTICE_HEADER + "\nx")
+    # The two files must agree on the notice marker.
+    assert g.NOTICE_HEADER.startswith(e.GUARDRAIL_NOTICE_PREFIX)
+
+
 def test_streams_text_and_passes_params(fake_client):
     calls = fake_client(["Let's ", "try 4 x 30."])
     out = run(make_pipe(), {"stream": True, "messages": [
