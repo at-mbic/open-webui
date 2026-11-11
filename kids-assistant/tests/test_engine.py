@@ -41,7 +41,8 @@ class FakeStream:
         return False
 
     async def get_final_message(self):
-        return SimpleNamespace(stop_reason=self._stop,
+        return SimpleNamespace(id="msg_1", model="claude-opus-5-5", stop_reason=self._stop,
+                               usage=SimpleNamespace(input_tokens=10, output_tokens=5),
                                content=[SimpleNamespace(type="text", text="".join(self._chunks))])
 
 
@@ -67,7 +68,7 @@ def fake_client(monkeypatch):
 def run(pipe, body):
     async def go():
         res = await pipe.pipe(body)
-        if isinstance(res, str):
+        if isinstance(res, (str, dict)):
             return res
         return "".join([c async for c in res])
     return asyncio.run(go())
@@ -122,7 +123,17 @@ def test_non_stream_refusal(fake_client):
     fake_client([], stop="refusal")
     out = run(make_pipe(), {"messages": [
         {"role": "system", "content": "TUTOR"}, {"role": "user", "content": "x"}]})
-    assert out == e.REFUSAL_TEXT
+    assert out["choices"][0]["message"]["content"] == e.REFUSAL_TEXT
+
+
+def test_non_stream_returns_model_and_usage(fake_client):
+    fake_client(["Try 4 x 30."])
+    out = run(make_pipe(), {"messages": [
+        {"role": "system", "content": "TUTOR"}, {"role": "user", "content": "x"}]})
+    assert out["model"] == "claude-opus-5-5"
+    assert out["usage"] == {"input_tokens": 10, "output_tokens": 5,
+                            "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+    assert out["choices"][0]["message"]["content"] == "Try 4 x 30."
 
 
 def test_fallback_opt_in(fake_client):

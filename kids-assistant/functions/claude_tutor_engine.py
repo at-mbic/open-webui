@@ -128,9 +128,24 @@ class Pipe:
                 final = await stream.get_final_message()
         except anthropic.APIError:
             return ERROR_TEXT
-        if final.stop_reason == "refusal":
-            return REFUSAL_TEXT
-        return "".join(b.text for b in final.content if b.type == "text")
+        text = (REFUSAL_TEXT if final.stop_reason == "refusal"
+                else "".join(b.text for b in final.content if b.type == "text"))
+        # OpenAI-shaped response so Open WebUI passes it through unchanged; the
+        # model and usage fields let the test runner record real cost.
+        u = final.usage
+        return {
+            "id": getattr(final, "id", ""),
+            "object": "chat.completion",
+            "model": final.model,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": text},
+                         "finish_reason": final.stop_reason}],
+            "usage": {
+                "input_tokens": u.input_tokens,
+                "output_tokens": u.output_tokens,
+                "cache_read_input_tokens": getattr(u, "cache_read_input_tokens", 0) or 0,
+                "cache_creation_input_tokens": getattr(u, "cache_creation_input_tokens", 0) or 0,
+            },
+        }
 
     async def _stream(self, client, kwargs) -> AsyncGenerator[str, None]:
         import anthropic
