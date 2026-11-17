@@ -2,7 +2,7 @@
 
 A guided homework tutor for Estelle (Grade 6, Willard MS, Math 6) and Dorian (Grade 4, Hovatter ES), Loudoun County Public Schools.
 
-Status: **proof of concept.** It runs on the **stock** Open WebUI image. Everything kid-specific is plugins and configuration applied through the API, so upgrades are a version bump.
+Status: **proof of concept.** It ships as one container: the stock Open WebUI image plus the kids' tutors, guardrails and settings, applied automatically every time it starts. Nothing is installed on your computer except Docker Desktop.
 
 ## What's here
 
@@ -14,10 +14,36 @@ Status: **proof of concept.** It runs on the **stock** Open WebUI image. Everyth
 | `functions/claude_tutor_engine.py` | Model provider: Claude via the official Anthropic SDK |
 | `scripts/provision.py` | One-command, re-runnable setup plus a safety audit |
 | `kids.config.example.json` | Names, logins, study hours, alert settings |
-| `docker-compose.yaml` | Runs Open WebUI v0.6.18 |
+| `docker/` | The Study Buddy image: `Dockerfile`, start script, first-start setup |
+| `.github/workflows/study-buddy-image.yml` | Builds the image and stores it as a private GitHub package |
+| `docker-compose.yaml` | Developer setup: stock Open WebUI, provisioned from your own machine |
 | `tests/` | Unit tests (`test_*.py`) and an end-to-end check against a live instance (`e2e_check.py`) |
 
-## Setup
+## Setup in Docker Desktop
+
+You need only Docker Desktop. No code, Python or files go on your computer; everything lives in the container and its storage volume. Deleting both in Docker Desktop removes every trace.
+
+1. **Sign in to GitHub's registry once.** The image is a private package. Create a GitHub token with only the `read:packages` scope (GitHub > Settings > Developer settings > Personal access tokens (classic)). In Docker Desktop, open the terminal (bottom bar, **Terminal**) and run:
+   ```
+   docker login ghcr.io -u <your GitHub username>
+   ```
+   Paste the token when asked for a password.
+2. **Start Study Buddy:**
+   ```
+   docker run -d --name study-buddy --restart unless-stopped -p 127.0.0.1:3000:8080 -v study-buddy-data:/app/backend/data ghcr.io/<owner>/study-buddy:latest
+   ```
+   It now shows under **Containers** in Docker Desktop. Stop, start and delete it from there.
+3. **Get the logins.** Click the container, open **Logs**, and find the `STUDY BUDDY LOGINS` box (about a minute after the first start). It is printed once. A copy is saved in the container at `/app/backend/data/kids-assistant/first-boot-passwords.txt` (**Files** tab). Change the passwords, then delete that file.
+4. **Add the Anthropic API key.** Open http://localhost:3000, log in as Parent, then Admin Panel > Functions > Claude Tutor Engine > gear icon > `ANTHROPIC_API_KEY`. It is stored in the container's volume.
+5. **Check it.** The log ends with `Safety audit ... OK` and `ready`. If setup or the audit ever fails, the container **stops itself** rather than run unprotected. The log says why.
+
+**Every start** re-applies the tutors, guardrails and locked-down permissions, then re-runs the safety audit. Changes made by hand in the admin UI that loosen the lockdown are put back.
+
+**Updating:** pull the new image, delete the container (not the volume), and run step 2 again. Accounts, chats, notes and the API key are kept in the `study-buddy-data` volume.
+
+**Only reachable from this computer.** `127.0.0.1:3000` means other devices on your network can't open it. Letting the kids use their own devices needs a deliberate change. Don't just switch to `-p 3000:8080`, which opens it to everyone on your network.
+
+## Developer setup (provision from your own machine)
 
 1. **Start it:** `docker compose -f kids-assistant/docker-compose.yaml up -d`, then open http://localhost:3000.
 2. **Create the parent account first.** The first account becomes the admin.
@@ -63,7 +89,10 @@ Re-run `provision.py` after editing a prompt or the config. It updates in place.
 - **Refusal fallback is off** (`ENABLE_REFUSAL_FALLBACK`). Anthropic recommends turning on automatic fallback to another model when Claude declines. For a children's app, a decline is usually the guardrail working, so it stays off unless you choose otherwise.
 - **Provider terms:** check Anthropic's usage policy on products used by minors before going live. You are the account holder and operator.
 - **Exposure:** keep it on your home network or behind a VPN or a tunnel with authentication. Never expose port 3000 directly.
-- **Method accuracy:** the math methods come from the state standards and the published curricula, not yet from the kids' own classwork. Update `curriculum/` and `prompts/` as photos and syllabi arrive, then re-run `provision.py`.
+- **First start, Docker Desktop:** sign-up is open for the few seconds between the server starting and the parent account being created. Port 3000 is bound to this computer only, so nothing else can reach it in that window.
+- **First-start passwords** are printed in the container log and saved in a file in the volume. Anyone with access to Docker Desktop on that computer can read both. Change the passwords and delete the file.
+- **The image contains the kids' names, schools, grades and tutor prompts.** Keep the repository and its package **private**.
+- **Method accuracy:** the math methods come from the state standards and the published curricula, not yet from the kids' own classwork. Update `curriculum/` and `prompts/` as photos and syllabi arrive, then rebuild the image (or re-run `provision.py` in the developer setup).
 
 ## Tests
 

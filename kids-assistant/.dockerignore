@@ -1,0 +1,7 @@
+**/__pycache__
+**/*.pyc
+kids.config.json
+evals/
+tests/
+curriculum/
+*.md
