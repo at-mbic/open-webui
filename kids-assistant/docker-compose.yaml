@@ -1,4 +1,4 @@
-# Kids Homework Assistant - runs the stock Open WebUI image. All kid-specific
+# Study Buddy - runs the stock Open WebUI image. All kid-specific
 # behavior is added afterwards by scripts/provision.py (functions, models,
 # accounts, permissions), so upgrading Open WebUI is just a tag bump.
 #
@@ -11,12 +11,12 @@
 services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:v0.6.18
-    container_name: kids-assistant
+    container_name: study-buddy
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:8080"
     volumes:
-      - kids-assistant-data:/app/backend/data
+      - study-buddy-data:/app/backend/data
     environment:
       # First-boot defaults. provision.py enforces the same settings via the
       # API, because Open WebUI persists config in its database after first boot.
@@ -45,4 +45,4 @@ services:
       TZ: "America/New_York"
 
 volumes:
-  kids-assistant-data:
+  study-buddy-data:

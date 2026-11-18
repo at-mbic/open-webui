@@ -1,6 +1,6 @@
 """
 title: Claude Tutor Engine
-author: kids-assistant
+author: Study Buddy
 description: Model provider for the kids' tutors. Calls Claude through the official Anthropic SDK. Refuses requests that arrive without a tutor system prompt, so the raw model can't be used directly.
 requirements: anthropic
 version: 0.1.0

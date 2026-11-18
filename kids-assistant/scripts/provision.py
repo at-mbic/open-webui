@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Provision the Kids Homework Assistant on a running Open WebUI instance.
+Provision Study Buddy on a running Open WebUI instance.
 
 Idempotent: safe to re-run after editing prompts, valves or config.
 

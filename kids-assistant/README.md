@@ -1,4 +1,4 @@
-# Kids Homework Assistant (built on Open WebUI)
+# Study Buddy (built on Open WebUI)
 
 A guided homework tutor for Estelle (Grade 6, Willard MS, Math 6) and Dorian (Grade 4, Hovatter ES), Loudoun County Public Schools.
 

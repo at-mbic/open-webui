@@ -1,6 +1,6 @@
 """
 title: Kids Guardrails
-author: kids-assistant
+author: Study Buddy
 description: Global safety filter for child accounts. Removes client-supplied system prompts, redacts personal information, enforces study hours, blocks clearly inappropriate requests, injects safety instructions, and alerts the parent on safety signals.
 version: 0.1.0
 """
@@ -345,7 +345,7 @@ class Filter:
         min_rank = SEVERITY_RANK.get(self.valves.alert_min_severity, 2)
         if url and SEVERITY_RANK[severity] >= min_rank:
             text = (
-                f"Kids Assistant: {severity.upper()} safety flag ({category}) in "
+                f"Study Buddy: {severity.upper()} safety flag ({category}) in "
                 f"{user.get('name', 'a child')}'s chat. Review it in the admin panel."
             )
             threading.Thread(target=self._post, args=(url, text), daemon=True).start()
